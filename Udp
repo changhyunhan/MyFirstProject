@@ -1,0 +1,96 @@
+#include <iostream>
+#include <winsock2.h>
+
+int main() {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "WSAStartup failed" << std::endl;
+        return 1;
+    }
+
+    SOCKET serverSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (serverSocket == INVALID_SOCKET) {
+        std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
+        WSACleanup();
+        return 1;
+    }
+
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(12345);
+
+    if (bind(serverSocket, (sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
+        std::cerr << "Bind failed: " << WSAGetLastError() << std::endl;
+        closesocket(serverSocket);
+        WSACleanup();
+        return 1;
+    }
+
+    char buffer[1024];
+    sockaddr_in clientAddr;
+    int clientAddrLen = sizeof(clientAddr);
+
+    while (true) {
+        int bytesRead = recvfrom(serverSocket, buffer, sizeof(buffer), 0, (sockaddr*)&clientAddr, &clientAddrLen);
+        if (bytesRead == SOCKET_ERROR) {
+            std::cerr << "Receive failed: " << WSAGetLastError() << std::endl;
+            break;
+        }
+
+        buffer[bytesRead] = '\0';
+        std::cout << "Received: " << buffer << std::endl;
+
+        sendto(serverSocket, buffer, bytesRead, 0, (sockaddr*)&clientAddr, clientAddrLen);
+    }
+
+    closesocket(serverSocket);
+    WSACleanup();
+    return 0;
+}
+
+
+#include <iostream>
+#include <winsock2.h>
+
+int main() {
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        std::cerr << "WSAStartup failed" << std::endl;
+        return 1;
+    }
+
+    SOCKET clientSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (clientSocket == INVALID_SOCKET) {
+        std::cerr << "Error creating socket: " << WSAGetLastError() << std::endl;
+        WSACleanup();
+        return 1;
+    }
+
+    sockaddr_in serverAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1"); // 서버 IP 주소
+    serverAddr.sin_port = htons(12345); // 서버 포트 번호
+
+    char buffer[1024];
+
+    while (true) {
+        std::cout << "Enter a message: ";
+        std::cin.getline(buffer, sizeof(buffer));
+
+        sendto(clientSocket, buffer, strlen(buffer), 0, (sockaddr*)&serverAddr, sizeof(serverAddr));
+
+        int bytesRead = recvfrom(clientSocket, buffer, sizeof(buffer), 0, nullptr, nullptr);
+        if (bytesRead == SOCKET_ERROR) {
+            std::cerr << "Receive failed: " << WSAGetLastError() << std::endl;
+            break;
+        }
+
+        buffer[bytesRead] = '\0';
+        std::cout << "Received from server: " << buffer << std::endl;
+    }
+
+    closesocket(clientSocket);
+    WSACleanup();
+    return 0;
+}
