@@ -1,0 +1,67 @@
+#include <iostream>
+#include <cstdlib>
+#include <cstring>
+#include <vector>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+const int NUM_SOCKETS = 3;
+
+int main() {
+    std::vector<int> sockets(NUM_SOCKETS);
+    struct sockaddr_in serverAddr[NUM_SOCKETS];
+
+    for (int i = 0; i < NUM_SOCKETS; ++i) {
+        sockets[i] = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sockets[i] < 0) {
+            perror("Socket creation error");
+            return 1;
+        }
+
+        serverAddr[i].sin_family = AF_INET;
+        serverAddr[i].sin_port = htons(12345 + i);
+        serverAddr[i].sin_addr.s_addr = INADDR_ANY;
+
+        if (bind(sockets[i], (struct sockaddr*)&serverAddr[i], sizeof(serverAddr[i])) < 0) {
+            perror("Bind error");
+            return 1;
+        }
+    }
+
+    fd_set readSet;
+    int maxSocket = *std::max_element(sockets.begin(), sockets.end());
+
+    while (true) {
+        FD_ZERO(&readSet);
+        for (int i = 0; i < NUM_SOCKETS; ++i) {
+            FD_SET(sockets[i], &readSet);
+        }
+
+        if (select(maxSocket + 1, &readSet, nullptr, nullptr, nullptr) < 0) {
+            perror("Select error");
+            return 1;
+        }
+
+        for (int i = 0; i < NUM_SOCKETS; ++i) {
+            if (FD_ISSET(sockets[i], &readSet)) {
+                char buffer[1024];
+                memset(buffer, 0, sizeof(buffer));
+                struct sockaddr_in clientAddr;
+                socklen_t addrLen = sizeof(clientAddr);
+
+                ssize_t numBytes = recvfrom(sockets[i], buffer, sizeof(buffer), 0, (struct sockaddr*)&clientAddr, &addrLen);
+                if (numBytes > 0) {
+                    std::cout << "Received from socket " << i << ": " << buffer << std::endl;
+                }
+            }
+        }
+    }
+
+    for (int i = 0; i < NUM_SOCKETS; ++i) {
+        close(sockets[i]);
+    }
+
+    return 0;
+}
